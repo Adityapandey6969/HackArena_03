@@ -1,109 +1,164 @@
 import React, { useState } from 'react';
-import { ShieldCheck, UserCheck, FilePlus, Sparkles, Database } from 'lucide-react';
-import OfficerCenter from './components/OfficerCenter';
-import ApplicantTracker from './components/ApplicantTracker';
-import SubmitForm from './components/SubmitForm';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import './App.css';
+import Navbar from './components/Navbar';
+import PhoneAuthPage from './pages/PhoneAuthPage';
+import OTPVerifyPage from './pages/OTPVerifyPage';
+import WelcomePage from './pages/WelcomePage';
+import ApplicantApplicationsPage from './pages/ApplicantApplicationsPage';
+import LoanApplicationPage from './pages/LoanApplicationPage';
+import ApplicationSuccessPage from './pages/ApplicationSuccessPage';
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState('officer'); // 'officer' | 'applicant' | 'submit'
-  const [selectedAppIdForTrack, setSelectedAppIdForTrack] = useState(1);
+function ApplicantFlow({ verifiedPhone, setVerifiedPhone }) {
+  // Stages in applicant flow:
+  // 'PHONE' -> 'OTP' -> 'WELCOME' -> 'LOGIN' (Saved Submissions) | 'NEW_APP' -> 'SUCCESS'
+  const [stage, setStage] = useState(verifiedPhone ? 'WELCOME' : 'PHONE');
+  const [devOtp, setDevOtp] = useState('');
+  const [smsInfo, setSmsInfo] = useState(null);
+  const [currentApp, setCurrentApp] = useState(null);
 
-  const handleSelectAppForTrack = (appId) => {
-    setSelectedAppIdForTrack(appId);
-    setActiveTab('applicant');
+  // Stage 1: Phone entered, OTP sent
+  const handleOtpSent = (phoneNum, otpCode, resData) => {
+    setVerifiedPhone(phoneNum);
+    setDevOtp(otpCode);
+    setSmsInfo(resData || null);
+    setStage('OTP');
   };
 
-  const handleAppCreated = (appResult) => {
-    setSelectedAppIdForTrack(appResult.app_id);
-    setActiveTab('officer');
+  // Stage 2: OTP verified
+  const handleOtpVerified = () => {
+    setStage('WELCOME');
+  };
+
+  // Stage 3: Welcome choices
+  const handleChooseLogin = () => {
+    setStage('LOGIN');
+  };
+
+  const handleChooseNewRegistration = () => {
+    setStage('NEW_APP');
+  };
+
+  // Stage 4: Form submission (submit only, no applicant screening shown)
+  const handleApplicationSubmitted = (savedApp) => {
+    setCurrentApp(savedApp);
+    setStage('SUCCESS');
+  };
+
+  // 4-step progress stepper
+  const getStepProgress = () => {
+    if (stage === 'PHONE') return 1;
+    if (stage === 'OTP') return 2;
+    if (stage === 'WELCOME' || stage === 'LOGIN') return 3;
+    return 4; // 'NEW_APP' or 'SUCCESS'
+  };
+
+  const currentStep = getStepProgress();
+
+  return (
+    <div>
+      {/* 4-Step Visual Stepper */}
+      <div className="stepper">
+        <div className={`step-item ${currentStep === 1 ? 'active' : currentStep > 1 ? 'completed' : ''}`}>
+          <div className="step-circle">{currentStep > 1 ? '✓' : '1'}</div>
+          <span className="step-label">Mobile Auth</span>
+        </div>
+        <div className={`step-line ${currentStep > 1 ? 'completed' : ''}`} />
+
+        <div className={`step-item ${currentStep === 2 ? 'active' : currentStep > 2 ? 'completed' : ''}`}>
+          <div className="step-circle">{currentStep > 2 ? '✓' : '2'}</div>
+          <span className="step-label">OTP Verification</span>
+        </div>
+        <div className={`step-line ${currentStep > 2 ? 'completed' : ''}`} />
+
+        <div className={`step-item ${currentStep === 3 ? 'active' : currentStep > 3 ? 'completed' : ''}`}>
+          <div className="step-circle">{currentStep > 3 ? '✓' : '3'}</div>
+          <span className="step-label">Welcome</span>
+        </div>
+        <div className={`step-line ${currentStep > 3 ? 'completed' : ''}`} />
+
+        <div className={`step-item ${currentStep === 4 ? (stage === 'SUCCESS' ? 'completed' : 'active') : ''}`}>
+          <div className="step-circle">{stage === 'SUCCESS' ? '✓' : '4'}</div>
+          <span className="step-label">{stage === 'SUCCESS' ? 'Application Submitted' : 'Loan Application'}</span>
+        </div>
+      </div>
+
+      {/* Dynamic Stage Render */}
+      {stage === 'PHONE' && (
+        <PhoneAuthPage onOtpSent={handleOtpSent} />
+      )}
+
+      {stage === 'OTP' && (
+        <OTPVerifyPage
+          phone={verifiedPhone}
+          devOtp={devOtp}
+          smsInfo={smsInfo}
+          onVerified={handleOtpVerified}
+          onChangePhone={() => setStage('PHONE')}
+        />
+      )}
+
+      {stage === 'WELCOME' && (
+        <WelcomePage
+          verifiedPhone={verifiedPhone}
+          onChooseLogin={handleChooseLogin}
+          onChooseNewRegistration={handleChooseNewRegistration}
+        />
+      )}
+
+      {stage === 'LOGIN' && (
+        <ApplicantApplicationsPage
+          verifiedPhone={verifiedPhone}
+          onBackToWelcome={() => setStage('WELCOME')}
+          onStartNewApplication={() => setStage('NEW_APP')}
+        />
+      )}
+
+      {stage === 'NEW_APP' && (
+        <LoanApplicationPage
+          verifiedPhone={verifiedPhone}
+          onBack={() => setStage('WELCOME')}
+          onSubmitSuccess={handleApplicationSubmitted}
+        />
+      )}
+
+      {stage === 'SUCCESS' && (
+        <ApplicationSuccessPage
+          application={currentApp}
+          onGoToDashboard={() => setStage('LOGIN')}
+          onApplyAnother={() => setStage('NEW_APP')}
+        />
+      )}
+    </div>
+  );
+}
+
+export default function App() {
+  const [verifiedPhone, setVerifiedPhone] = useState('');
+
+  const handleLogout = () => {
+    setVerifiedPhone('');
+    window.location.href = '/';
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      {/* Top Main Navigation Header */}
-      <header className="bg-slate-900/80 backdrop-blur border-b border-slate-800 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-gradient-to-tr from-indigo-600 to-violet-600 text-white rounded-xl shadow-lg">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-base font-extrabold text-white tracking-tight flex items-center space-x-2">
-                <span>Loan Pre-Screening Tool</span>
-                <span className="bg-indigo-950 text-indigo-400 border border-indigo-800 px-2 py-0.5 rounded-full text-[10px] font-mono">
-                  F5 Engine Ready
-                </span>
-              </h1>
-              <p className="text-[11px] text-slate-400">Loan Decision & Guidance Engine • Hackathon F5 Owner</p>
-            </div>
-          </div>
-
-          {/* Navigation Tabs */}
-          <nav className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 space-x-1">
-            <button
-              onClick={() => setActiveTab('officer')}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
-                activeTab === 'officer'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
-              }`}
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span className="hidden sm:inline">Officer Center (Module B)</span>
-              <span className="sm:hidden">Officer</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('applicant')}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
-                activeTab === 'applicant'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
-              }`}
-            >
-              <UserCheck className="w-4 h-4" />
-              <span className="hidden sm:inline">Applicant Portal (Module A)</span>
-              <span className="sm:hidden">Applicant</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('submit')}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
-                activeTab === 'submit'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
-              }`}
-            >
-              <FilePlus className="w-4 h-4" />
-              <span className="hidden sm:inline">Submit App (F1 Stub)</span>
-              <span className="sm:hidden">Submit</span>
-            </button>
-          </nav>
-        </div>
-      </header>
-
-      {/* Main Body */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'officer' && (
-          <OfficerCenter onSelectAppForTrack={handleSelectAppForTrack} />
-        )}
-
-        {activeTab === 'applicant' && (
-          <ApplicantTracker defaultAppId={selectedAppIdForTrack} />
-        )}
-
-        {activeTab === 'submit' && (
-          <SubmitForm onAppCreated={handleAppCreated} />
-        )}
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950 py-4 text-center text-xs text-slate-500">
-        <div className="flex items-center justify-center space-x-2">
-          <Database className="w-3.5 h-3.5 text-slate-600" />
-          <span>Single DB Source of Truth: SQLite (`loans.db`) • FastAPI Engine Layer</span>
-        </div>
-      </footer>
-    </div>
+    <BrowserRouter>
+      <div className="app-container">
+        <Navbar verifiedPhone={verifiedPhone} onLogout={handleLogout} />
+        <main className="main-content">
+          <Routes>
+            <Route
+              path="*"
+              element={
+                <ApplicantFlow
+                  verifiedPhone={verifiedPhone}
+                  setVerifiedPhone={setVerifiedPhone}
+                />
+              }
+            />
+          </Routes>
+        </main>
+      </div>
+    </BrowserRouter>
   );
 }
