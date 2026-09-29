@@ -140,7 +140,7 @@ niceHackathon/
     └── vite.config.js        # Vite build & API proxy configuration
 ```
 
----
+-----
 
 ## 📌 Summary of Features & Stubs
 
